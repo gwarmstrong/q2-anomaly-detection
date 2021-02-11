@@ -1,0 +1,15 @@
+channels:
+  - conda-forge
+  - qiime2
+  - defaults
+dependencies:
+  - python
+  - scikit-bio
+  - biom-format
+  - pandas
+  - numpy
+  - matplotlib
+  - seaborn
+  - qiime2
+  - q2templates
+  - q2-types
