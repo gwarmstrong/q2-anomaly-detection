@@ -16,4 +16,3 @@ class MinMaxScaler:
         x *= diff / max(x)
         x += self.min_
         return x
-

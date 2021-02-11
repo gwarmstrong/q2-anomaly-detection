@@ -22,6 +22,9 @@ setup(
       extras_require={
             'analysis': [
                   'jupyter',
+            ],
+            'dev': [
+                  'flake8',
             ]
       }
 )
