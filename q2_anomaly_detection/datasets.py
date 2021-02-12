@@ -156,4 +156,3 @@ class KeyboardDataset(Dataset):
 class DietInterventionStudy(MultiPrepDataset):
     study_id = 11550
     table_artifact_id = [63512, 63515]
-
