@@ -1,3 +1,4 @@
+from typing import List
 from abc import ABC
 from urllib import request
 from zipfile import ZipFile
@@ -55,7 +56,10 @@ class Dataset(ABC):
         os.remove(zip_path)
 
     def _download_table(self):
-        table_link = self._artifact_fstring.format(self.table_artifact_id)
+        self._download_single_table(self.table_artifact_id)
+
+    def _download_single_table(self, artifact_id):
+        table_link = self._artifact_fstring.format(artifact_id)
         table_path = os.path.join(self.path, self._table_kw)
         self._download_and_unzip(table_link, table_path)
 
@@ -66,8 +70,11 @@ class Dataset(ABC):
 
     @property
     def table_path(self):
+        return self._single_table_path(self.table_artifact_id)
+
+    def _single_table_path(self, artifact_id):
         path_to_table = os.path.join(
-            self.path, self._table_kw, 'BIOM', str(self.table_artifact_id),
+            self.path, self._table_kw, 'BIOM', str(artifact_id),
             'otu_table.biom',
         )
         return os.path.abspath(path_to_table)
@@ -92,7 +99,10 @@ class Dataset(ABC):
         return os.path.abspath(full_path)
 
     def _table_exists(self):
-        return os.path.exists(self.table_path)
+        return self._single_table_exists(self.table_path)
+
+    def _single_table_exists(self, table_path):
+        return os.path.exists(table_path)
 
     def _metadata_exists(self):
         return True if self.metadata_path else False
@@ -100,8 +110,11 @@ class Dataset(ABC):
     @property
     def table(self):
         if self._table is None:
-            self._table = load_table(self.table_path)
+            self._table = self._load_table()
         return self._table
+
+    def _load_table(self):
+        return load_table(self.table_path)
 
     @property
     def metadata(self):
@@ -110,6 +123,36 @@ class Dataset(ABC):
         return self._metadata
 
 
+class MultiPrepDataset(Dataset):
+
+    table_artifact_id: List[int]
+
+    def _table_apply(self, fn):
+        return [fn(id_) for id_ in self.table_artifact_id]
+
+    def _load_table(self):
+        tables = [load_table(path) for path in self.table_path]
+        t1 = tables.pop()
+        for t in tables:
+            t1 = t1.merge(t)
+        return t1
+
+    def _table_exists(self):
+        return all(self._single_table_exists(path) for path in self.table_path)
+
+    @property
+    def table_path(self):
+        return self._table_apply(self._single_table_path)
+
+    def _download_table(self):
+        self._table_apply(self._download_single_table)
+
+
 class KeyboardDataset(Dataset):
     study_id = 232
     table_artifact_id = 46809
+
+
+class DietInterventionStudy(MultiPrepDataset):
+    study_id = 11550
+    table_artifact_id = [63512, 63515]
