@@ -10,6 +10,9 @@ dependencies:
   - numpy
   - matplotlib
   - seaborn
+  - emperor
   - qiime2
   - q2templates
   - q2-types
+  - q2-emperor
+  - q2-diversity
