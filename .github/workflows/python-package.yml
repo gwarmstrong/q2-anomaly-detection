@@ -34,7 +34,7 @@ jobs:
     - name: Install dependencies
       shell: bash -l {0}
       run: |
-        conda create -n test-q2-anomaly-detection --file ci/conda_requirements.yml
+        conda create -n test-q2-anomaly-detection --file ci/conda-requirements.yml
         conda activate test-q2-anomaly-detection
         pip install ".[test]"
     - name: Tests
