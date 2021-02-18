@@ -25,6 +25,9 @@ setup(
             ],
             'dev': [
                   'flake8',
+            ],
+            'test': [
+                  'nose',
             ]
       }
 )
