@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Callable
 from abc import ABC
 from urllib import request
 from zipfile import ZipFile
@@ -22,73 +22,26 @@ def download_and_extract_response(response, path):
 
 class ArchiverMixin:
     dataset: 'Dataset'
-    table_kw: str
-    metadata_kw: str
+    save: Callable
 
 
 class QiitaSaveMixin(ArchiverMixin):
 
-    def save_qiita_table(self, response):
-        self._download_and_extract(response, self.table_kw)
-
-    def save_qiita_metadata(self, response):
-        self._download_and_extract(response, self.metadata_kw)
+    def save(self, artifact: 'Artifact', response: HTTPResponse):
+        self._download_and_extract(response, artifact.name)
 
     def _download_and_extract(self, response, keyword):
-        metadata_path = os.path.join(self.dataset.path,
-                                     keyword
-                                     )
-        download_and_extract_response(response, metadata_path)
+        path = os.path.join(self.dataset.path,
+                            keyword,
+                            )
+        download_and_extract_response(response, path)
 
 
-class _FilesystemArchiver(QiitaSaveMixin):
-    table_kw = 'table'
-    metadata_kw = 'metadata'
+class FileSystemArchiver(QiitaSaveMixin):
 
     def __init__(self, dataset):
         self.dataset: Dataset = dataset
         self.path = self.dataset.path
-
-    @property
-    def metadata_path(self):
-        path_to_metadata = os.path.join(
-            self.path, self.metadata_kw, 'templates'
-        )
-        if not os.path.exists(path_to_metadata):
-            return False
-        md_candidates = list(
-            filter(lambda n: n.endswith('.txt'),
-                   os.listdir(path_to_metadata)
-                   )
-        )
-        if len(md_candidates) == 0:
-            return False
-        else:
-            md_file = md_candidates[0]
-        full_path = os.path.join(path_to_metadata, md_file)
-        return os.path.abspath(full_path)
-
-    @property
-    def read_metadata(self):
-        return pd.read_csv(self.metadata_path, sep='\t')
-
-    def read_table(self):
-        return load_table(self.table_path)
-
-    @property
-    def table_path(self):
-        path_to_table = os.path.join(
-            self.dataset.path, self.table_kw, 'BIOM',
-            str(self.dataset.table_artifact_id),
-            'otu_table.biom',
-        )
-        return os.path.abspath(path_to_table)
-
-    def metadata_exists(self):
-        return True if self.metadata_path else False
-
-    def table_exists(self):
-        return os.path.exists(self.table_path)
 
     def read(self, artifact: 'FileSystemArtifact'):
         return artifact.filesystem_read(self)
@@ -101,7 +54,11 @@ class _FilesystemArchiver(QiitaSaveMixin):
 
 
 class Artifact:
-    pass
+    name: str
+
+    @staticmethod
+    def merge(self, other):
+        raise NotImplementedError()
 
 
 class QiitaArtifact(Artifact):
@@ -110,41 +67,42 @@ class QiitaArtifact(Artifact):
     _metadata_fstring = "https://qiita.ucsd.edu/public_download/" \
                         "?data=sample_information&study_id={}"
 
-    def qiita_download(self, client: '_QiitaClient') -> HTTPResponse:
+    def qiita_download(self, client: 'QiitaClient', archiver: ArchiverMixin):
         raise NotImplementedError('You should implement this.')
 
 
-class FileSystemArtifact:
-    def filesystem_exists(self, archiver: _FilesystemArchiver):
+class FileSystemArtifact(Artifact):
+    def filesystem_exists(self, archiver: FileSystemArchiver):
         raise NotImplementedError('You should implement this.')
 
-    def filesystem_read(self, archiver: _FilesystemArchiver):
+    def filesystem_read(self, archiver: FileSystemArchiver):
         raise NotImplementedError('You should implement this.')
 
-    def filesystem_path(self, archiver: _FilesystemArchiver):
+    def filesystem_path(self, archiver: FileSystemArchiver):
         raise NotImplementedError('You should implement this.')
 
 
-class Table(Artifact, QiitaArtifact, FileSystemArtifact):
+class Table(QiitaArtifact, FileSystemArtifact):
 
-    def __init__(self, name, artifact_id):
-        self.name = name
+    name = 'table'
+
+    def __init__(self, artifact_id):
         self.artifact_id = artifact_id
 
-    def qiita_download(self, client: '_QiitaClient') -> HTTPResponse:
+    def qiita_download(self, client: 'QiitaClient', archiver: ArchiverMixin):
         table_link = self._artifact_fstring.format(self.artifact_id)
         r = client.make_request(table_link)
-        return r
+        archiver.save(self, r)
 
-    def filesystem_exists(self, archiver):
+    def filesystem_exists(self, archiver: FileSystemArchiver):
         path = self.filesystem_path(archiver)
         return os.path.exists(path)
 
-    def filesystem_read(self, archiver):
+    def filesystem_read(self, archiver: FileSystemArchiver):
         path = self.filesystem_path(archiver)
         return load_table(path)
 
-    def filesystem_path(self, archiver):
+    def filesystem_path(self, archiver: FileSystemArchiver):
         path_to_table = os.path.join(
             archiver.path, self.name, 'BIOM',
             str(self.artifact_id),
@@ -152,18 +110,52 @@ class Table(Artifact, QiitaArtifact, FileSystemArtifact):
         )
         return os.path.abspath(path_to_table)
 
+    @staticmethod
+    def merge(t1, t2):
+        return t1.merge(t2)
 
-class Metadata(Artifact, QiitaArtifact, FileSystemArtifact):
 
-    def __init__(self, name, study_id):
-        self.name = name
+class ArtifactList(QiitaArtifact, FileSystemArtifact):
+
+    def __init__(self, *artifacts):
+        self.artifacts = list(artifacts)
+
+    def qiita_download(self, client: 'QiitaClient', archiver: ArchiverMixin):
+        for artifact in self.artifacts:
+            artifact.qiita_download(client, archiver)
+
+    def filesystem_exists(self, archiver: FileSystemArchiver):
+        return all(
+            artifact.filesystem_exists(archiver) for artifact in self.artifacts
+        )
+
+    def filesystem_read(self, archiver: FileSystemArchiver):
+        if len(self.artifacts) > 0:
+            artifact = self.artifacts[0]
+            merged = artifact.filesystem_read(archiver)
+        for artifact in self.artifacts[1:]:
+            other = artifact.filesystem_read(archiver)
+            merged = artifact.merge(merged, other)
+        return merged
+
+
+class Tables(ArtifactList):
+
+    name = 'table'
+
+
+class Metadata(QiitaArtifact, FileSystemArtifact):
+
+    name = 'metadata'
+
+    def __init__(self, study_id):
         self.study_id = study_id
 
-    def qiita_download(self, client: '_QiitaClient') -> HTTPResponse:
+    def qiita_download(self, client: 'QiitaClient', archiver: ArchiverMixin):
         metadata_link = self._metadata_fstring.format(
             self.study_id)
         r = client.make_request(metadata_link)
-        return r
+        archiver.save(self, r)
 
     def filesystem_exists(self, archiver):
         return True if self.filesystem_path(archiver) else False
@@ -191,31 +183,19 @@ class Metadata(Artifact, QiitaArtifact, FileSystemArtifact):
         return os.path.abspath(full_path)
 
 
-class _QiitaClient:
+class QiitaClient:
 
     _artifact_fstring = "https://qiita.ucsd.edu/public_artifact_download/" \
                         "?artifact_id={}"
     _metadata_fstring = "https://qiita.ucsd.edu/public_download/" \
                         "?data=sample_information&study_id={}"
 
-    def __init__(self, dataset, archiver):
+    def __init__(self, dataset, archiver: QiitaSaveMixin):
         self.dataset: Dataset = dataset
         self.archiver = archiver
 
-    def download_table(self):
-        table_link = self._artifact_fstring.format(
-            self.dataset.table_artifact_id)
-        r = self.make_request(table_link)
-        self.archiver.save_qiita_table(r)
-
-    def download_metadata(self):
-        metadata_link = self._metadata_fstring.format(self.dataset.study_id)
-        r = self.make_request(metadata_link)
-        self.archiver.save_qiita_metadata(r)
-
     def download(self, artifact: QiitaArtifact):
-        r = artifact.qiita_download(self)
-        self.archiver.save(artifact, r)
+        artifact.qiita_download(self, self.archiver)
 
     @staticmethod
     def make_request(url):
@@ -224,15 +204,14 @@ class _QiitaClient:
 
 class Dataset(ABC):
 
-    study_id: int
-    table_artifact_id: int
-
-    artifacts: Dict[Artifact]
+    artifacts: Dict[str, Artifact] = dict()
+    archiver_type = FileSystemArchiver
+    client_type = QiitaClient
 
     def __init__(self, path, download=True):
         self.path = path
-        self.archiver = _FilesystemArchiver(self)
-        self.client = _QiitaClient(self, self.archiver)
+        self.archiver = self.archiver_type(self)
+        self.client = self.client_type(self, self.archiver)
 
         if download:
             self.download()
@@ -259,54 +238,14 @@ class Dataset(ABC):
             )
 
     def __getitem__(self, item):
-        if item in self.artifacts and item not in self._data:
-            self._data[item] = self.archiver.read(self.artifacts[item])
+        if item in self._data:
             return self._data[item]
+        elif item in self.artifacts:
+            value = self.archiver.read(self.artifacts[item])
+            self._data[item] = value
+            return value
         else:
-            # will raise an exception if item not in self._data
-            # TODO maybe I should raise my own KeyError here
-            return self._data[item]
-
-    @property
-    def table(self):
-        if self._table is None:
-            self._table = self.archiver.read_table()
-        return self._table
-
-    @property
-    def metadata(self):
-        if self._metadata is None:
-            self._metadata = self.archiver.read_metadata()
-        return self._metadata
-
-
-# class MultiPrepDataset(Dataset):
-#
-#     table_artifact_id: List[int]
-#
-#     def __init__(self, path, download_ok=True):
-#         super().__init__(path, download_ok=download_ok)
-#         self.client.download_table = self._download_table
-#
-#     def _table_apply(self, fn):
-#         return [fn(id_) for id_ in self.table_artifact_id]
-#
-#     def read_table(self):
-#         tables = [load_table(path) for path in self.table_path]
-#         t1 = tables.pop()
-#         for t in tables:
-#             t1 = t1.merge(t)
-#         return t1
-#
-#     def _table_exists(self):
-#         return all(self._single_table_exists(path) for path in self.table_path)
-#
-#     @property
-#     def table_path(self):
-#         return self._table_apply(self.client.single_table_path)
-#
-#     def _download_table(self):
-#         self._table_apply(self.client.download_single_table)
+            raise KeyError(item)
 
 
 class KeyboardDataset(Dataset):
@@ -314,11 +253,19 @@ class KeyboardDataset(Dataset):
     table_artifact_id = 46809
 
     artifacts = {
-        'metadata': Metadata('metadata', study_id),
-        'table': Table('table', table_artifact_id),
+        'metadata': Metadata(study_id),
+        'table': Table(table_artifact_id),
     }
 
 
-# class DietInterventionStudy(MultiPrepDataset):
-#     study_id = 11550
-#     table_artifact_id = [63512, 63515]
+class DietInterventionStudy(Dataset):
+    study_id = 11550
+    table_artifact_ids = [63512, 63515]
+
+    artifacts = {
+        'metadata': Metadata(study_id),
+        'table': Tables(
+            Table(table_artifact_ids[0]),
+            Table(table_artifact_ids[1]),
+        ),
+    }
