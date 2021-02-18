@@ -27,14 +27,11 @@ class ArchiverMixin:
 
 class QiitaSaveMixin(ArchiverMixin):
 
-    def save(self, artifact: 'Artifact', response: HTTPResponse):
-        self._download_and_extract(response, artifact.name)
+    _download_method = download_and_extract_response
 
-    def _download_and_extract(self, response, keyword):
-        path = os.path.join(self.dataset.path,
-                            keyword,
-                            )
-        download_and_extract_response(response, path)
+    def save(self, artifact: 'Artifact', response: HTTPResponse):
+        path = os.path.join(self.dataset.path, artifact.name)
+        self._download_method(response, path)
 
 
 class FileSystemArchiver(QiitaSaveMixin):
