@@ -13,11 +13,14 @@ class Results(list):
 
     def long_form(self):
         res_df = pd.DataFrame.from_dict(
-            {(e['model_name'], e['category'], l['sample_id']):
-                 [l['score'], l['scaled_score'], l['score_rank'],
-                  l['train_test']]
+            {(e['model_name'], e['category'], score['sample_id']):
+                [
+                    score['score'],
+                    score['scaled_score'],
+                    score['score_rank'],
+                    score['train_test']]
              for e in self
-             for l in e['anomaly_scores']
+             for score in e['anomaly_scores']
              },
             orient='index',
             columns=['anomaly_score',
