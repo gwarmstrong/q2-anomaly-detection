@@ -24,6 +24,10 @@ class Cloud():
         
         if self.metric == "precomputed":
             self.di = np.apply_along_axis(
+                # want to find the k nearest neighbors
+                # however, the distance  between a sample and itself will always
+                # be included (i.e. has a distance of 0). Thus we want to find
+                # the k+1 nearest neighbors.
                 lambda x: x[np.argpartition(x, self.k+1)[:self.k+1]].sum() / self.k,
                 axis=1,
                 arr=X
