@@ -1,75 +1,82 @@
 import numpy as np
 
+
 class Cloud():
-    def __init__(self, n_neighbors="auto", metric="precomputed", percentile_cutoff=0.95):
+    def __init__(
+        self,
+        n_neighbors="auto",
+        metric="precomputed",
+        percentile_cutoff=0.95
+    ):
         """
-        n_neighbors: Interger/String default='auto'
-            'auto' will set k = 10% of reference set size
+        n_neighbors: "auto" or int default="auto"
+            "auto" will set k = 10% of reference set size
         """
         self.k = n_neighbors
-        self.metric=metric
+        self.metric = metric
         self.percentile_cutoff = percentile_cutoff
-        
-    def fit(self, X):
+
+    def fit(self, X, y=None):
         """
-        x: 2-d np.array
-            Distances between each sample in the reference set. The distance between a
-            sample and itself should be zero. Note: X should be square
-            where row i represents sample i and column j represents sample j. So,
-            X[i,j] should be the distance between sample i and j and X[i, i] = 0.
+        X: np.array of shape (n_samples, n_features)
+            Distances between each sample in the reference set. The distance
+            between a sample and itself should be zero. Note: X should be
+            square where row i represents sample i and column j represents
+            sample j. So, X[i,j] should be the distance between sample i and j
+            and X[i, i] = 0.
         """
         if self.k == "auto":
-            k = int(X.shape[0] * 0.1) 
+            k = int(X.shape[0] * 0.1)
             self.k = k if k > 0 else 1
-        
-        if self.metric == "precomputed":
-            self.di = np.apply_along_axis(
-                # want to find the k nearest neighbors
-                # however, the distance  between a sample and itself will always
-                # be included (i.e. has a distance of 0). Thus we want to find
-                # the k+1 nearest neighbors.
-                lambda x: x[np.argpartition(x, self.k+1)[:self.k+1]].sum() / self.k,
-                axis=1,
-                arr=X
-            )
 
-        self.d_bar = self.di.mean()
-        self.ri = self.di / self.d_bar
-    
-    def score_samples(self, X):
+        if self.metric == "precomputed":
+            _, neighbor_distances = self.kneighbors(X, n_neighbors=self.k+1)
+            self.estimators_diameters = neighbor_distances[:, 1:].mean(axis=1)
+
+        self.mean_diameter = self.estimators_diameters.mean()
+        self.outlier_detection_test_scores = \
+            self.estimators_diameters / self.mean_diameter
+
+    def kneighbors(self, X=None, n_neighbors=None):
+        n_neighbors = self.k if n_neighbors is None else n_neighbors
+        indices = np.argpartition(X, kth=n_neighbors, axis=1)[:, :n_neighbors]
+        distances = np.take_along_axis(X, indices, axis=1)
+        return indices, distances
+
+    def score_samples(self, X, y=None):
         """
-        X: 2-d np.array
-            Distance between test samples and reference samples. Each row in X should represent a test sample
-            and each column should represent a reference sample. So, X[i,j] is the distance between test sample
+        X: np.array of shape (n_samples, n_features)
+            Distance between test samples and reference samples. Each row in X
+            should represent a test sample and each column should represent a
+            reference sample. So, X[i,j] is the distance between test sample
             i and reference sample j.
         """
-        dj = np.apply_along_axis(
-            lambda x: x[np.argpartition(x, self.k)[:self.k]].mean(),
-            axis=1,
-            arr=X
-        )
-        rj = dj / self.d_bar
-        return rj
-        
+        _, neighbor_distances = self.kneighbors(X)
+        sample_diameters = neighbor_distances.mean(axis=1)
+        sample_outlier_detection_test_scores = \
+            sample_diameters / self.mean_diameter
+        return -sample_outlier_detection_test_scores
+
     def decision_function(self, X):
         """
-        X: 2-d np.array
-            Distance between test samples and reference samples. Each row in X should represent a test sample
-            and each column should represent a reference sample. So, X[i,j] is the distance between test sample
+        X: np.array of shape (n_samples, n_features)
+            Distance between test samples and reference samples. Each row in X
+            should represent a test sample and each column should represent a
+            reference sample. So, X[i,j] is the distance between test sample
             i and reference sample j.
         """
         scores = self.score_samples(X)
-        return -1*(scores - np.quantile(self.ri, self.percentile_cutoff))
-    
+        return scores + np.quantile(
+            self.outlier_detection_test_scores, self.percentile_cutoff
+        )
+
     def predict(self, X):
         """
-        X: 2-d np.array
-            Distance between test samples and reference samples. Each row in X should represent a test sample
-            and each column should represent a reference sample. So, X[i,j] is the distance between test sample
+        X: np.array of shape (n_samples, n_features)
+            Distance between test samples and reference samples. Each row in X
+            should represent a test sample and each column should represent a
+            reference sample. So, X[i,j] is the distance between test sample
             i and reference sample j.
         """
         df = self.decision_function(X)
-        df[df > 0] = 1
-        df[df <= 0] = -1
-        return df
-        
+        return np.where(df > 0, 1, -1)
