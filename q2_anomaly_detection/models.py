@@ -6,7 +6,7 @@ class Cloud():
         self,
         n_neighbors="auto",
         metric="precomputed",
-        percentile_cutoff=0.95
+        percentile_cutoff=0.05
     ):
         """
         n_neighbors: "auto" or int default="auto"
@@ -35,7 +35,7 @@ class Cloud():
 
         self.mean_diameter = self.estimators_diameters.mean()
         self.outlier_detection_test_scores = \
-            self.estimators_diameters / self.mean_diameter
+            -self.estimators_diameters / self.mean_diameter
 
     def kneighbors(self, X=None, n_neighbors=None):
         n_neighbors = self.k if n_neighbors is None else n_neighbors
@@ -66,7 +66,7 @@ class Cloud():
             i and reference sample j.
         """
         scores = self.score_samples(X)
-        return scores + np.quantile(
+        return scores - np.quantile(
             self.outlier_detection_test_scores, self.percentile_cutoff
         )
 
