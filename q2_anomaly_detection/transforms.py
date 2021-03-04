@@ -2,6 +2,7 @@ import tempfile
 import numpy as np
 from scipy.spatial.distance import cdist
 from sklearn.base import TransformerMixin
+from biom.util import biom_open
 from skbio.stats.composition import clr
 from skbio.stats import subsample_counts
 from skbio.diversity.beta import unweighted_unifrac
@@ -22,29 +23,50 @@ class AsDense(TransformerMixin):
 
 class UniFrac(TransformerMixin):
 
-    def __init__(self, tree, **kneighbors_kwargs):
-        self.tree = tree
-        self.otu_ids = None
-        self.distance_fn = None
-        self.input_data = None
+    def __init__(self, tree_path):
+        self.tree_path = tree_path
+        self.table = None
 
     def fit(self, X, y=None):
         """
 
-        X : pd.DataFrame
-            Must contain the OTU IDs in the column names
+        X : biom.Table
 
         """
-        self.otu_ids = X.columns.values
-        self.distance_fn = partial(unweighted_unifrac, otu_ids=self.otu_ids,
-                                   tree=self.tree,
-                                   )
-        # TODO this may want to make a copy of X
-        self.input_data = X
+        self.table = X
         return self
 
     def transform(self, X):
-        return cdist(X, self.input_data, metric=self.distance_fn)
+        """
+
+        X : biom.Table
+
+        """
+        # TODO one problem with this approach is that
+        #  if any samples in X overlap self.table, the counts will
+        #  be doubled
+        merged_table = self.table.merge(X)
+        with tempfile.NamedTemporaryFile() as f:
+            with biom_open(f.name, 'w') as b:
+                merged_table.to_hdf5(b, "merged")
+
+            dm = ssu(f.name, self.tree_path,
+                     unifrac_method='unweighted',
+                     variance_adjust=False,
+                     alpha=1.0,
+                     bypass_tips=False,
+                     threads=1,
+                     )
+
+        # get indices of test ID's
+        X_idx = [dm.index(name) for name in X.ids('sample')]
+        # get indices of table ID's
+        ref_idx = [dm.index(name) for name in self.table.ids('sample')]
+
+        # extract sub-distance matrix
+        idxs = np.ix_(X_idx, ref_idx)
+        sub_dm = dm.data[idxs]
+        return sub_dm
 
 
 class Rarefaction(TransformerMixin):

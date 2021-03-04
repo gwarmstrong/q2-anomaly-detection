@@ -57,7 +57,7 @@ class Benchmark:
             for val, ids, training_table in splitter:
                 score_scaler = MinMaxScaler(clip=True)
                 # Training
-                model.fit(as_dense(training_table))
+                model.fit(training_table)
 
                 # testing
                 # removing training samples from the table with all data
@@ -69,7 +69,7 @@ class Benchmark:
                 )
 
                 # scoring the test samples (anomaly prediction)
-                scores = model.score_samples(as_dense(test_table))
+                scores = model.score_samples(test_table)
                 scores_scaled = score_scaler.fit_transform(
                     scores.reshape(-1, 1)).flatten()
 

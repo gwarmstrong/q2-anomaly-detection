@@ -18,6 +18,7 @@ setup(
             'seaborn',
             'scipy',
             'pandas',
+            'unifrac',
       ],
       extras_require={
             'analysis': [
