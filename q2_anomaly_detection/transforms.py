@@ -69,6 +69,48 @@ class UniFrac(TransformerMixin):
         return sub_dm
 
 
+class RarefactionBIOM(TransformerMixin):
+
+    def __init__(self, depth, replace=False):
+        self.depth = depth
+        self.replace = replace
+        self.index = None
+        self.features = None
+
+    def fit(self, X, y=None):
+        """
+
+        X : biom.Table
+
+        """
+        self.index = X.subsample(n=self.depth,
+                                 with_replacement=self.replace)
+        self.features = self.index.ids('observation')
+        return self
+
+    def transform(self, X):
+        X = X.filter(ids_to_keep=self.features, axis='observation',
+                     inplace=False)
+        index_ids = set(self.index.ids('sample'))
+        known_ids = [id_ for id_ in X.ids('sample') if id_ in index_ids]
+        unknown_ids = [id_ for id_ in X.ids('sample') if id_ not in index_ids]
+        known_counts = self.index.filter(ids_to_keep=known_ids, axis='sample',
+                                         inplace=False
+                                         )
+        unknown_counts = X.filter(ids_to_keep=unknown_ids, axis='sample',
+                                  inplace=False
+                                  )
+        unknown_counts = unknown_counts.subsample(
+            n=self.depth,
+            with_replacement=self.replace
+        )
+        # TODO arghhh this really needs unit tests
+        self.index.merge(unknown_counts)
+        all_counts = known_counts.merge(unknown_counts)
+        all_counts.sort_order(X.ids('sample'), axis='sample')
+        return all_counts
+
+
 class Rarefaction(TransformerMixin):
 
     def __init__(self, depth, replace=False):
