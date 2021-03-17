@@ -12,7 +12,7 @@ setup(
       packages=find_packages(),
       install_requires=[
             'numpy',
-            'scikit-learn',
+            'scikit-learn>=0.24',
             'biom-format',
             'matplotlib',
             'seaborn',

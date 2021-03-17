@@ -39,6 +39,17 @@ class Results(list):
         return agg_results
 
 
+class ColumnValueSplitter:
+    def __init__(self, training_category):
+        self.training_category = training_category
+
+    def split(self, table, metadata):
+        # returns generator
+        yield from column_value_splitter(
+            table, metadata, self.training_category,
+        )
+
+
 class Benchmark:
 
     def __init__(self, models):
@@ -48,12 +59,14 @@ class Benchmark:
     def splitter(table, metadata, training_category):
         return column_value_splitter(table, metadata, training_category)
 
-    def benchmarking_loop(self, table, metadata, truth_category,
-                          training_category):
+    def set_splitter(self, splitter):
+        self.splitter = splitter
+
+    def benchmarking_loop(self, table, metadata, truth_category):
         all_results = []
         for model_name, model_attrs in self.models.items():
             model = model_attrs['model']
-            splitter = self.splitter(table, metadata, training_category)
+            splitter = self.splitter.split(table, metadata)
             for val, ids, training_table in splitter:
                 score_scaler = MinMaxScaler(clip=True)
                 # Training
