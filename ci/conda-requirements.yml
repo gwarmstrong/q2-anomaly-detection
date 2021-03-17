@@ -13,3 +13,4 @@ dependencies:
   - qiime2
   - q2templates
   - q2-types
+  - unifrac
