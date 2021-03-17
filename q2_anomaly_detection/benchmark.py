@@ -12,16 +12,18 @@ class Results(list):
         super().__init__(results_dict)
 
     def long_form(self):
-        res_df = pd.DataFrame.from_dict(
-            {(e['model_name'], e['category'], score['sample_id']):
-                [
+        result = {}
+        for e in self:
+            for score in e["anomaly_scores"]:
+                key = (e['model_name'], e['category'], score['sample_id'])
+                result[key] = [
                     score['score'],
                     score['scaled_score'],
                     score['score_rank'],
-                    score['train_test']]
-             for e in self
-             for score in e['anomaly_scores']
-             },
+                    score['train_test']
+                ]
+        res_df = pd.DataFrame.from_dict(
+            result,
             orient='index',
             columns=['anomaly_score',
                      'scaled_score',
@@ -83,12 +85,49 @@ class ColumnValueSplitter:
             yield label, training_table, train_ids, test_table, test_labels
 
 
-class ExternalScorer:
+class Scorer:
+
+    def __init__(self):
+        self.score_scaler = MinMaxScaler(clip=True)
+
     
     def score(self, context):
         model = context["model"]      
+
+        self.scores = self.score_raw(context)
+
+        self.scores_scaled = self.score_scaler.fit_transform(
+            self.scores.reshape(-1, 1)).flatten()
+
+        self.ranked_scores = rankdata(self.scores)
+        return self.scores        
+
+
+class ExternalScorer(Scorer):
+    def score_raw(self, context):
+        model = context["model"]
         test_table = context["test_table"]
         return model.score_samples(test_table)
+
+
+    def add_scores(self, results, context):
+        test_table = context["test_table"]
+        train_ids = context["train_ids"]
+        anomaly_scores = []
+        for id_, score, scaled, ranked_score in zip(
+                    test_table.ids('sample'),
+                    self.scores, self.scores_scaled, 
+                    self.ranked_scores
+                ):
+            anomaly_scores.append(
+                {
+                    'sample_id': id_, 'score': score,
+                    'scaled_score': scaled,
+                    'score_rank': ranked_score,
+                    'train_test': 'train' if id_ in train_ids else 'test',
+                }
+            )
+        results["anomaly_scores"] =  anomaly_scores
 
 
 class Benchmark:
@@ -116,43 +155,31 @@ class Benchmark:
             splitter = self.splitter.split(table, metadata)
             for label, training_table, train_ids, test_table, test_labels \
                     in splitter:
-                score_scaler = MinMaxScaler(clip=True)
+                # score_scaler = MinMaxScaler(clip=True)
                 # Training
                 model.fit(training_table)
 
                 # scoring the test samples (anomaly prediction)
                 self.set_context(
-                    model=model, test_table=test_table,
+                    model=model, test_table=test_table, train_ids=train_ids
                 )
-                scores = self.scorer.score(self.context)
-                scores_scaled = score_scaler.fit_transform(
-                    scores.reshape(-1, 1)).flatten()
+                self.scorer.score(self.context)
+                # scores_scaled = score_scaler.fit_transform(
+                #     scores.reshape(-1, 1)).flatten()
 
+                # ranked_scores = rankdata(scores)
                 results = dict()
+                self.scorer.add_scores(results, self.context)
                 # add metadata on model training to the results ouput
                 results['model_name'] = model_name
                 results['category'] = label
 
                 # add evaluation metrics to the results output
-                predicted_anomaly_scores = 1 - scores_scaled
+                predicted_anomaly_scores = 1 - self.scorer.scores_scaled
                 results['roc_auc'] = roc_auc_score(test_labels,
                                                    predicted_anomaly_scores)
                 results['avg_prec'] = average_precision_score(
                     test_labels, predicted_anomaly_scores)
-
-                # assigning individual anomaly scores to samples in the results
-                # output
-                ranked_scores = rankdata(scores)
-                results['anomaly_scores'] = [
-                    {'sample_id': id_, 'score': score,
-                     'scaled_score': scaled,
-                     'score_rank': ranked_score,
-                     'train_test': 'train' if id_ in train_ids else 'test'} for
-                    id_, score, scaled, ranked_score in zip(
-                        test_table.ids('sample'),
-                        scores, scores_scaled, ranked_scores
-                    )
-                ]
 
                 all_results.append(results)
 
