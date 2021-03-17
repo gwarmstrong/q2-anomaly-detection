@@ -40,14 +40,55 @@ class Results(list):
 
 
 class ColumnValueSplitter:
-    def __init__(self, training_category):
+    def __init__(self, training_category, truth_category):
         self.training_category = training_category
+        self.truth_category = truth_category
 
     def split(self, table, metadata):
+        """
+        Yields
+        ------
+        label : str
+            Name for the split
+        training_table : BIOMTable
+            Data for fitting detection model
+        train_ids : set(str)
+            A collection of train ids
+        test_table : BIOMTable
+            Data for testing
+        test_labels : arrary like of shape (n_samples,)
+            Values should be 0 or 1. 1 is anomaly and 0 is not
+        """
         # returns generator
-        yield from column_value_splitter(
+        col_val_split = column_value_splitter(
             table, metadata, self.training_category,
         )
+        for label, ids, training_table in col_val_split:
+            # testing
+            # removing training samples from the table with all data
+            train_ids = set(training_table.ids('sample'))
+            test_table = table.filter(
+                train_ids,
+                invert=True,
+                inplace=False,
+            )
+
+            # creating labels for baseline
+            non_anomaly_ids = metadata.loc[
+                (metadata[self.truth_category] == label)].index
+            # set not anomaly as 0 and anomaly as 1
+            test_labels = [0 if id_ in non_anomaly_ids
+                           else 1 for id_ in test_table.ids('sample')]
+
+            yield label, training_table, train_ids, test_table, test_labels
+
+
+class ExternalScorer:
+    
+    def score(self, context):
+        model = context["model"]      
+        test_table = context["test_table"]
+        return model.score_samples(test_table)
 
 
 class Benchmark:
@@ -55,55 +96,49 @@ class Benchmark:
     def __init__(self, models):
         self.models = models
 
-    @staticmethod
-    def splitter(table, metadata, training_category):
-        return column_value_splitter(table, metadata, training_category)
-
     def set_splitter(self, splitter):
         self.splitter = splitter
 
-    def benchmarking_loop(self, table, metadata, truth_category):
+    def set_scorer(self, scorer):
+        self.scorer = scorer
+
+    def set_context(self, **kwargs):
+        self._context = kwargs
+
+    @property
+    def context(self):
+        return self._context
+
+    def benchmarking_loop(self, table, metadata):
         all_results = []
         for model_name, model_attrs in self.models.items():
             model = model_attrs['model']
             splitter = self.splitter.split(table, metadata)
-            for val, ids, training_table in splitter:
+            for label, training_table, train_ids, test_table, test_labels \
+                    in splitter:
                 score_scaler = MinMaxScaler(clip=True)
                 # Training
                 model.fit(training_table)
 
-                # testing
-                # removing training samples from the table with all data
-                train_ids = set(training_table.ids('sample'))
-                test_table = table.filter(
-                    train_ids,
-                    invert=True,
-                    inplace=False,
-                )
-
                 # scoring the test samples (anomaly prediction)
-                scores = model.score_samples(test_table)
+                self.set_context(
+                    model=model, test_table=test_table,
+                )
+                scores = self.scorer.score(self.context)
                 scores_scaled = score_scaler.fit_transform(
                     scores.reshape(-1, 1)).flatten()
-
-                # creating labels for baseline
-                non_anomaly_ids = metadata.loc[
-                    (metadata[truth_category] == val)].index
-                # set not anomaly as 0 and anomaly as 1
-                true_labels = [0 if id_ in non_anomaly_ids
-                               else 1 for id_ in test_table.ids('sample')]
 
                 results = dict()
                 # add metadata on model training to the results ouput
                 results['model_name'] = model_name
-                results['category'] = val
+                results['category'] = label
 
                 # add evaluation metrics to the results output
                 predicted_anomaly_scores = 1 - scores_scaled
-                results['roc_auc'] = roc_auc_score(true_labels,
+                results['roc_auc'] = roc_auc_score(test_labels,
                                                    predicted_anomaly_scores)
                 results['avg_prec'] = average_precision_score(
-                    true_labels, predicted_anomaly_scores)
+                    test_labels, predicted_anomaly_scores)
 
                 # assigning individual anomaly scores to samples in the results
                 # output
