@@ -161,7 +161,8 @@ class Benchmark:
 
                 # scoring the test samples (anomaly prediction)
                 self.set_context(
-                    model=model, test_table=test_table, train_ids=train_ids
+                    model=model, test_table=test_table, train_ids=train_ids,
+                    training_table=training_table
                 )
                 self.scorer.score(self.context)
                 # scores_scaled = score_scaler.fit_transform(
