@@ -1,13 +1,10 @@
 import tempfile
 import numpy as np
-from scipy.spatial.distance import cdist
 from sklearn.base import TransformerMixin
 from biom.util import biom_open
 from skbio.stats.composition import clr
 from skbio.stats import subsample_counts
-from skbio.diversity.beta import unweighted_unifrac
 from q2_anomaly_detection.utils import as_dense
-from functools import partial
 import pandas as pd
 from unifrac import ssu
 
