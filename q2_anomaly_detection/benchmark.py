@@ -1,7 +1,6 @@
 import pandas as pd
 from sklearn.metrics import roc_auc_score, average_precision_score
 from sklearn.preprocessing import MinMaxScaler
-from q2_anomaly_detection.utils import as_dense
 from q2_anomaly_detection.cross_validation import column_value_splitter
 from scipy.stats import rankdata
 
@@ -90,17 +89,14 @@ class Scorer:
     def __init__(self):
         self.score_scaler = MinMaxScaler(clip=True)
 
-    
     def score(self, context):
-        model = context["model"]      
-
         self.scores = self.score_raw(context)
 
         self.scores_scaled = self.score_scaler.fit_transform(
             self.scores.reshape(-1, 1)).flatten()
 
         self.ranked_scores = rankdata(self.scores)
-        return self.scores        
+        return self.scores
 
 
 class ExternalScorer(Scorer):
@@ -109,14 +105,13 @@ class ExternalScorer(Scorer):
         test_table = context["test_table"]
         return model.score_samples(test_table)
 
-
     def add_scores(self, results, context):
         test_table = context["test_table"]
         train_ids = context["train_ids"]
         anomaly_scores = []
         for id_, score, scaled, ranked_score in zip(
                     test_table.ids('sample'),
-                    self.scores, self.scores_scaled, 
+                    self.scores, self.scores_scaled,
                     self.ranked_scores
                 ):
             anomaly_scores.append(
@@ -127,7 +122,7 @@ class ExternalScorer(Scorer):
                     'train_test': 'train' if id_ in train_ids else 'test',
                 }
             )
-        results["anomaly_scores"] =  anomaly_scores
+        results["anomaly_scores"] = anomaly_scores
 
 
 class Benchmark:
