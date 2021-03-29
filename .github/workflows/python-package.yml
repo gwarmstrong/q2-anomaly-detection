@@ -27,16 +27,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
-    - uses: conda-incubator/setup-miniconda@v2
-      with:        
-        auto-update-conda: true
-        python-version: 3.6 
     - uses: actions/cache@v2
       env:
         cache-name: cache-conda-env
       with:
         path: ~/conda_pkgs_dir
         key: ${{ matrix.os }}-build-${{ env.cache-name }}-$GITHUB_RUN_ID
+    - uses: conda-incubator/setup-miniconda@v2
+      with:        
+        auto-update-conda: true
+        python-version: 3.6
+        activate-environment: test-q2-anomaly-detection
+        use-only-tar-bz2: true
     - name: Install dependencies
       shell: bash -l {0}
       run: |
@@ -55,22 +57,21 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
-    - uses: conda-incubator/setup-miniconda@v2
-      with:
-        auto-update-conda: true
-        python-version: 3.6
     - uses: actions/cache@v2
       env:
         cache-name: cache-conda-env
       with:
         path: ~/conda_pkgs_dir
-        key: ${{ matrix.os }}-build-${{ env.cache-name }}-$GITHUB_RUN_ID
+        key: ${{ matrix.os }}-build-${{ env.cache-name }}-${GITHUB_RUN_ID}
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: 3.6
+        activate-environment: test-q2-anomaly-detection
+        use-only-tar-bz2: true
     - name: Package Tests
       shell: bash -l {0}
       run: |
-        conda info --envs
-        ls ~/conda_pkgs_dir
-        conda activate test-q2-anomaly-detection
         nosetests
 
   notebook-tests:
@@ -81,20 +82,21 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2
-        with:
-          auto-update-conda: true
-          python-version: 3.6
       - uses: actions/cache@v2
         env:
           cache-name: cache-conda-env
         with:
           path: ~/conda_pkgs_dir
           key: ${{ matrix.os }}-build-${{ env.cache-name }}-$GITHUB_RUN_ID
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: 3.6
+          activate-environment: test-q2-anomaly-detection
+          use-only-tar-bz2: true
       - name: Package Tests
         shell: bash -l {0}
         run: |
-          conda activate test-q2-anomaly-detection
           cd notebooks
           jupyter nbconvert --to python *.ipynb
           for f in *.py; do
