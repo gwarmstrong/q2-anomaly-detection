@@ -19,7 +19,7 @@ jobs:
         pip install -q flake8
         flake8
 
-  build-and-test:
+  build:
     needs: lint
     strategy:
       matrix:
@@ -38,7 +38,20 @@ jobs:
         conda activate test-q2-anomaly-detection
         conda env update --file ci/conda-requirements.yml
         pip install ".[test]"
-    - name: Tests
+
+  package-tests:
+    needs: build
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: 3.6
+    - name: Package Tests
       shell: bash -l {0}
       run: |
         conda activate test-q2-anomaly-detection
