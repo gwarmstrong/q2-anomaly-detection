@@ -36,7 +36,7 @@ jobs:
         cache-name: cache-conda-env
       with:
         path: /usr/local/miniconda/envs/
-        key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ hashFiles('ci/*', 'setup.py') }}
+        key: ${{ matrix.os }}-build-${{ env.cache-name }}-$GITHUB_RUN_ID
     - name: Install dependencies
       shell: bash -l {0}
       run: |
@@ -44,6 +44,8 @@ jobs:
         conda activate test-q2-anomaly-detection
         conda env update --file ci/conda-requirements.yml
         pip install ".[test,analysis]"
+        conda info --envs
+        ls /usr/local/miniconda/envs
 
   package-tests:
     needs: build
@@ -62,11 +64,12 @@ jobs:
         cache-name: cache-conda-env
       with:
         path: /usr/local/miniconda/envs/
-        key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ hashFiles('ci/*', 'setup.py') }}
+        key: ${{ matrix.os }}-build-${{ env.cache-name }}-$GITHUB_RUN_ID
     - name: Package Tests
       shell: bash -l {0}
       run: |
         conda info --envs
+        ls /usr/local/miniconda/envs
         conda activate test-q2-anomaly-detection
         nosetests
 
@@ -87,7 +90,7 @@ jobs:
           cache-name: cache-conda-env
         with:
           path: /usr/local/miniconda/envs/
-          key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ hashFiles('ci/*', 'setup.py') }}
+          key: ${{ matrix.os }}-build-${{ env.cache-name }}-$GITHUB_RUN_ID
       - name: Package Tests
         shell: bash -l {0}
         run: |
