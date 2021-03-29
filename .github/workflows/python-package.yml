@@ -48,5 +48,7 @@ jobs:
         cd notebooks
         jupyter nbconvert --to python *.ipynb
         for f in *.py; do
+          # remove magic commands
+          sed -i '' '/get_ipython/d' $f
           python $f
         done
