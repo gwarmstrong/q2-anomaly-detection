@@ -16,5 +16,6 @@ dependencies:
   - q2templates
   - q2-types
   - unifrac
+  - pip
   - pip:
     - git+https://github.com/gwarmstrong/friendly-guacamole.git@main
