@@ -32,7 +32,7 @@ jobs:
       env:
         cache-name: cache-conda-env
       with:
-        path: [~/conda_pkgs_dir, ~/.cache/pip]
+        path: '{~/conda_pkgs_dir,~/.cache/pip}'
         key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ github.run_id }}
     - uses: conda-incubator/setup-miniconda@v2
       with:        
@@ -58,7 +58,7 @@ jobs:
       env:
         cache-name: cache-conda-env
       with:
-        path: [~/conda_pkgs_dir, ~/.cache/pip]
+        path: '{~/conda_pkgs_dir,~/.cache/pip}'
         key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ github.run_id }}
     - uses: conda-incubator/setup-miniconda@v2
       with:
