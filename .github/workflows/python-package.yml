@@ -32,7 +32,7 @@ jobs:
       env:
         cache-name: cache-conda-env
       with:
-        path: ~/conda_pkgs_dir
+        path: [~/conda_pkgs_dir, ~/.cache/pip]
         key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ github.run_id }}
     - uses: conda-incubator/setup-miniconda@v2
       with:        
@@ -43,9 +43,8 @@ jobs:
     - name: Install dependencies
       shell: bash -l {0}
       run: |
-        conda create -n test-q2-anomaly-detection
-        conda activate test-q2-anomaly-detection
         conda env update --file ci/conda-requirements.yml
+        pip install ".[test,analysis]"
 
   package-tests:
     needs: build
@@ -59,7 +58,7 @@ jobs:
       env:
         cache-name: cache-conda-env
       with:
-        path: ~/conda_pkgs_dir
+        path: [~/conda_pkgs_dir, ~/.cache/pip]
         key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ github.run_id }}
     - uses: conda-incubator/setup-miniconda@v2
       with:
@@ -70,7 +69,6 @@ jobs:
     - name: Package Tests
       shell: bash -l {0}
       run: |
-        pip install ".[test]"
         nosetests
 
   notebook-tests:
@@ -85,7 +83,7 @@ jobs:
       env:
         cache-name: cache-conda-env
       with:
-        path: ~/conda_pkgs_dir
+        path: [~/conda_pkgs_dir, ~/.cache/pip]
         key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ github.run_id }}
     - uses: conda-incubator/setup-miniconda@v2
       with:
@@ -96,7 +94,6 @@ jobs:
     - name: Package Tests
       shell: bash -l {0}
       run: |
-        pip install ".[analysis]"
         cd notebooks
         jupyter nbconvert --to python *.ipynb
         for f in *.py; do
