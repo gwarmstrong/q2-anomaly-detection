@@ -1,4 +1,4 @@
-channels:
+channelsnalm
   - conda-forge
   - qiime2
   - defaults
@@ -15,3 +15,5 @@ dependencies:
   - q2templates
   - q2-types
   - unifrac
+  - pip:
+    - git+https://github.com/gwarmstrong/friendly-guacamole@master
