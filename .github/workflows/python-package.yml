@@ -27,6 +27,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
+    - uses: actions/cache@v2
+      env:
+        cache-name: cache-conda-env
+      with:
+        path: /usr/local/miniconda/envs/
+        key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ hashFiles('ci/*', 'setup.py') }}
     - uses: conda-incubator/setup-miniconda@v2
       with:        
         auto-update-conda: true
@@ -37,7 +43,7 @@ jobs:
         conda create -n test-q2-anomaly-detection
         conda activate test-q2-anomaly-detection
         conda env update --file ci/conda-requirements.yml
-        pip install ".[test]"
+        pip install ".[test,analysis]"
 
   package-tests:
     needs: build
@@ -51,8 +57,42 @@ jobs:
       with:
         auto-update-conda: true
         python-version: 3.6
+    - uses: actions/cache@v2
+      env:
+        cache-name: cache-conda-env
+      with:
+        path: /usr/local/miniconda/envs/
+        key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ hashFiles('ci/*', 'setup.py') }}
     - name: Package Tests
       shell: bash -l {0}
       run: |
         conda activate test-q2-anomaly-detection
         nosetests
+
+  notebook-tests:
+    needs: build
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        env:
+          cache-name: cache-conda-env
+        with:
+          path: /usr/local/miniconda/envs/
+          key: ${{ matrix.os }}-build-${{ env.cache-name }}-${{ hashFiles('ci/*', 'setup.py') }}
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: 3.6
+      - name: Package Tests
+        shell: bash -l {0}
+        run: |
+          conda activate test-q2-anomaly-detection
+          cd notebooks
+          jupyter nbconvert --to python *.ipynb
+          for f in *.py; do
+            python $f
+          done
