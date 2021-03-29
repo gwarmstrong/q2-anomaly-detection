@@ -46,9 +46,6 @@ jobs:
         conda create -n test-q2-anomaly-detection
         conda activate test-q2-anomaly-detection
         conda env update --file ci/conda-requirements.yml
-        pip install ".[test,analysis]"
-        conda info --envs
-        ls ~/conda_pkgs_dir
 
   package-tests:
     needs: build
@@ -73,6 +70,7 @@ jobs:
     - name: Package Tests
       shell: bash -l {0}
       run: |
+        pip install ".[test]"
         nosetests
 
   notebook-tests:
@@ -98,6 +96,7 @@ jobs:
     - name: Package Tests
       shell: bash -l {0}
       run: |
+        pip install ".[analysis]"
         cd notebooks
         jupyter nbconvert --to python *.ipynb
         for f in *.py; do
