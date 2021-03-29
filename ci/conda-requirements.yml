@@ -19,4 +19,4 @@ dependencies:
   - pip
   - pip:
     - git+https://github.com/gwarmstrong/friendly-guacamole.git@main
-    - nosetests
+    - nose
