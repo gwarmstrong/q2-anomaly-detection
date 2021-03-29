@@ -6,6 +6,7 @@ channels:
 dependencies:
   - python
   - scikit-bio
+  - scikit-learn>=0.24
   - biom-format
   - pandas
   - numpy
