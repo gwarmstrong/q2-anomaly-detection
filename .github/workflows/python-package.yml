@@ -49,6 +49,7 @@ jobs:
         mkdir -p results/figures
         jupyter nbconvert --to python *.ipynb
         for f in *.py; do
+          echo $f
           # remove magic commands
           sed -i '' '/get_ipython/d' $f
           python $f
