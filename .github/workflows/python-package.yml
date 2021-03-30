@@ -51,6 +51,10 @@ jobs:
         for f in *.py; do
           echo $f
           # remove magic commands
-          sed -i '' '/get_ipython/d' $f
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sed -i '/get_ipython/d' $f
+          else
+            sed -i '' '/get_ipython/d' $f
+          fi
           python $f
         done
