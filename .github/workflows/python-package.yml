@@ -46,6 +46,7 @@ jobs:
       shell: bash -l {0}
       run: |
         cd notebooks
+        mkdir results
         jupyter nbconvert --to python *.ipynb
         for f in *.py; do
           # remove magic commands
