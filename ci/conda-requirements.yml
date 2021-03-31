@@ -6,6 +6,7 @@ channels:
 dependencies:
   - python
   - scikit-bio
+  - scikit-learn>=0.24
   - biom-format
   - pandas
   - numpy
@@ -15,3 +16,7 @@ dependencies:
   - q2templates
   - q2-types
   - unifrac
+  - pip
+  - pip:
+    - git+https://github.com/gwarmstrong/friendly-guacamole.git@main
+    - nose
